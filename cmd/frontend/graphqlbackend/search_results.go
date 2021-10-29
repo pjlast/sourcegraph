@@ -629,10 +629,20 @@ func (r *searchResolver) toSearchInputs(q query.Q) (*search.TextParameters, []ru
 		// It which specializes search logic in doResults. In time, all
 		// of the above logic should be used to create search jobs
 		// across all of Sourcegraph.
+
+		globalSearch := args.Mode == search.ZoektGlobalSearch
+		skipUnindexed := args.Mode == search.SkipUnindexed || (globalSearch && envvar.SourcegraphDotComMode())
+		searcherOnly := args.Mode == search.SearcherOnly || (globalSearch && !envvar.SourcegraphDotComMode())
+
+		// Global Text Search.
+		if globalSearch {
+			if args.ResultTypes.Has(result.TypeFile | result.TypePath) {
+
+			}
+		}
+
+		// Non-global Text Search.
 		if args.ResultTypes.Has(result.TypeFile | result.TypePath) {
-			globalSearch := args.Mode == search.ZoektGlobalSearch
-			skipUnindexed := args.Mode == search.SkipUnindexed || (globalSearch && envvar.SourcegraphDotComMode())
-			searcherOnly := args.Mode == search.SearcherOnly || (globalSearch && !envvar.SourcegraphDotComMode())
 
 			if !skipUnindexed {
 				typ := search.TextRequest
@@ -670,6 +680,7 @@ func (r *searchResolver) toSearchInputs(q query.Q) (*search.TextParameters, []ru
 
 		}
 
+		// Structural search.
 		if r.PatternType == query.SearchTypeStructural && p.Pattern != "" {
 			jobs = append(jobs, &unindexed.StructuralSearch{
 				RepoFetcher: unindexed.NewRepoFetcher(r.stream, &args),
@@ -1718,7 +1729,9 @@ func (r *searchResolver) doResults(ctx context.Context, args *search.TextParamet
 			return waitGroup(args.ResultTypes.Without(result.TypeDiff) == 0)
 		case "Commit":
 			return waitGroup(args.ResultTypes.Without(result.TypeCommit) == 0)
-		case "Text":
+		case "RepoSubsetText":
+			return waitGroup(true)
+		case "RepoUniverseText":
 			return waitGroup(true)
 		case "Structural":
 			return waitGroup(true)

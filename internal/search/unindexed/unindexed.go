@@ -3,6 +3,7 @@ package unindexed
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/inconshreveable/log15"
 
+	zoektquery "github.com/google/zoekt/query"
 	"github.com/sourcegraph/sourcegraph/cmd/searcher/protocol"
 	"github.com/sourcegraph/sourcegraph/internal/api"
 	"github.com/sourcegraph/sourcegraph/internal/endpoint"
@@ -303,7 +305,7 @@ func callSearcherOverRepos(
 	return g.Wait()
 }
 
-type TextSearch struct {
+type RepoSubsetTextSearch struct {
 	ZoektArgs         *search.ZoektParameters
 	SearcherArgs      *search.SearcherParameters
 	FileMatchLimit    int32
@@ -313,7 +315,7 @@ type TextSearch struct {
 	OnMissingRepoRevs zoektutil.OnMissingRepoRevs
 }
 
-func (t *TextSearch) Run(ctx context.Context, stream streaming.Sender, repos []*search.RepositoryRevisions) error {
+func (t *RepoSubsetTextSearch) Run(ctx context.Context, stream streaming.Sender, repos []*search.RepositoryRevisions) error {
 	ctx, stream, cleanup := streaming.WithLimit(ctx, stream, int(t.FileMatchLimit))
 	defer cleanup()
 
@@ -330,6 +332,89 @@ func (t *TextSearch) Run(ctx context.Context, stream streaming.Sender, repos []*
 	return SearchFilesInRepos(ctx, request, t.SearcherArgs, t.NotSearcherOnly, stream)
 }
 
-func (*TextSearch) Name() string {
-	return "Text"
+func (*RepoSubsetTextSearch) Name() string {
+	return "RepoSubsetText"
+}
+
+type RepoUniverseTextSearch struct {
+	RepoOptions       *search.RepoOptions
+	ZoektArgs         *search.ZoektParameters
+	SearcherArgs      *search.SearcherParameters
+	FileMatchLimit    int32
+	NotSearcherOnly   bool
+	UseIndex          query.YesNoOnly
+	ContainsRefGlobs  bool
+	OnMissingRepoRevs zoektutil.OnMissingRepoRevs
+}
+
+func defaultScopeStatic(repoOptions search.RepoOptions) (zoektquery.Q, error) {
+	// Public or Any
+	if repoOptions.Visibility == query.Public || repoOptions.Visibility == query.Any {
+		rc := zoektquery.RcOnlyPublic
+		apply := func(f zoektquery.RawConfig, b bool) {
+			if !b {
+				return
+			}
+			rc |= f
+		}
+		apply(zoektquery.RcOnlyArchived, repoOptions.OnlyArchived)
+		apply(zoektquery.RcNoArchived, repoOptions.NoArchived)
+		apply(zoektquery.RcOnlyForks, repoOptions.OnlyForks)
+		apply(zoektquery.RcNoForks, repoOptions.NoForks)
+
+		children := []zoektquery.Q{&zoektquery.Branch{Pattern: "HEAD", Exact: true}, rc}
+		for _, pat := range repoOptions.MinusRepoFilters {
+			re, err := regexp.Compile(`(?i)` + pat)
+			if err != nil {
+				// TODO don't need to do this
+				return nil, errors.Wrapf(err, "invalid regex for -repo filter %q", pat)
+			}
+			children = append(children, &zoektquery.Not{Child: &zoektquery.RepoRegexp{Regexp: re}})
+		}
+		return zoektquery.NewAnd(children...), nil
+	}
+	return &zoektquery.Const{Value: false}, nil // TODO whatever
+}
+
+type privateFilter func([]types.RepoName) zoektquery.Q
+
+func privateScopeQuery(repoOptions search.RepoOptions) privateFilter {
+	return func(userPrivateRepos []types.RepoName) zoektquery.Q {
+		// Private or Any
+		if (repoOptions.Visibility == query.Private || repoOptions.Visibility == query.Any) && len(userPrivateRepos) > 0 {
+			ids := make([]uint32, 0, len(userPrivateRepos))
+			for _, r := range userPrivateRepos {
+				ids = append(ids, uint32(r.ID))
+			}
+			return zoektquery.NewSingleBranchesRepos("HEAD", ids...)
+		}
+		return &zoektquery.Const{Value: false} // TODO whatever
+	}
+}
+
+func (t *RepoUniverseTextSearch) Run(ctx context.Context, stream streaming.Sender, repos []*search.RepositoryRevisions) error {
+	ctx, stream, cleanup := streaming.WithLimit(ctx, stream, int(t.FileMatchLimit))
+	defer cleanup()
+
+	request, ok, err := zoektutil.OnlyUnindexed(repos, t.ZoektArgs.Zoekt, t.UseIndex, t.ContainsRefGlobs, t.OnMissingRepoRevs)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		var repoOptions search.RepoOptions    // TODO
+		var userPrivateRepos []types.RepoName // TODO
+		defaultScopeQuery, err := defaultScopeStatic(repoOptions)
+		if err != nil {
+			return err
+		}
+		privateScopeQuery := privateScopeQuery(repoOptions)(userPrivateRepos)
+		scopeQuery := zoektquery.NewOr(defaultScopeQuery, privateScopeQuery)
+		t.ZoektArgs.Query = zoektquery.Simplify(zoektquery.NewAnd(t.ZoektArgs.Query, scopeQuery))
+		request = &zoektutil.IndexedUniverseSearchRequest{Args: t.ZoektArgs}
+	}
+	return SearchFilesInRepos(ctx, request, t.SearcherArgs, t.NotSearcherOnly, stream)
+}
+
+func (*RepoUniverseTextSearch) Name() string {
+	return "RepoUniverseText"
 }
