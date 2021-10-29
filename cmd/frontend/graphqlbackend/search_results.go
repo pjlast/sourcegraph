@@ -44,7 +44,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/search/searchcontexts"
 	"github.com/sourcegraph/sourcegraph/internal/search/streaming"
 	"github.com/sourcegraph/sourcegraph/internal/search/unindexed"
-	"github.com/sourcegraph/sourcegraph/internal/search/zoekt"
 	zoektutil "github.com/sourcegraph/sourcegraph/internal/search/zoekt"
 	"github.com/sourcegraph/sourcegraph/internal/trace"
 	"github.com/sourcegraph/sourcegraph/internal/trace/ot"
@@ -655,7 +654,7 @@ func (r *searchResolver) toSearchInputs(q query.Q) (*search.TextParameters, []ru
 					return nil, nil, err
 				}
 
-				var repoOptions search.RepoOptions // TODO
+				repoOptions := r.toRepoOptions(q, resolveRepositoriesOpts{})
 				defaultScopeQuery, err := zoektutil.DefaultScopeStatic(repoOptions)
 				if err != nil {
 					return nil, nil, err
@@ -677,7 +676,7 @@ func (r *searchResolver) toSearchInputs(q query.Q) (*search.TextParameters, []ru
 					ZoektArgs:         zoektArgs,
 					SearcherArgs:      searcherArgs,
 					FileMatchLimit:    args.PatternInfo.FileMatchLimit,
-					NotSearcherOnly:   !searcherOnly,
+					NotSearcherOnly:   true, // XXX think about this. Because globalSearch.
 					UseIndex:          args.PatternInfo.Index,
 					ContainsRefGlobs:  query.ContainsRefGlobs(q),
 					OnMissingRepoRevs: zoektutil.MissingRepoRevStatus(r.stream),
@@ -1569,8 +1568,6 @@ func (r *searchResolver) doResults(ctx context.Context, args *search.TextParamet
 		_, _, _, _ = agg.Get()
 	}()
 
-	args.RepoOptions = r.toRepoOptions(args.Query, resolveRepositoriesOpts{})
-
 	// globalSearch controls whether we run a global zoekt search.
 	globalSearch := args.Mode == search.ZoektGlobalSearch
 	// skipUnindexed is a value that controls whether to run unindexed
@@ -1592,67 +1589,47 @@ func (r *searchResolver) doResults(ctx context.Context, args *search.TextParamet
 	// performance optimization: call zoekt early, resolve repos concurrently, filter
 	// search results with resolved repos.
 	if globalSearch {
-		argsIndexed := *args
-
-		userID := int32(0)
-		if envvar.SourcegraphDotComMode() {
-			if a := actor.FromContext(ctx); a != nil {
-				userID = a.UID
+		{
+			// put this in RepoUniverse.Run(). need to factor out symbol search job or it wont' work
+			userID := int32(0)
+			if envvar.SourcegraphDotComMode() {
+				if a := actor.FromContext(ctx); a != nil {
+					userID = a.UID
+				}
 			}
-		}
 
-		// Get all private repos for the the current actor. On sourcegraph.com, those are
-		// only the repos directly added by the user. Otherwise it's all repos the user has
-		// access to on all connected code hosts / external services.
-		userPrivateRepos, err := database.Repos(r.db).ListRepoNames(ctx, database.ReposListOptions{
-			UserID:       userID, // Zero valued when not in sourcegraph.com mode
-			OnlyPrivate:  true,
-			LimitOffset:  &database.LimitOffset{Limit: search.SearchLimits(conf.Get()).MaxRepos + 1},
-			OnlyForks:    args.RepoOptions.OnlyForks,
-			NoForks:      args.RepoOptions.NoForks,
-			OnlyArchived: args.RepoOptions.OnlyArchived,
-			NoArchived:   args.RepoOptions.NoArchived,
-		})
-
-		if err != nil {
-			log15.Error("doResults: failed to list user private repos", "error", err, "user-id", userID)
-			tr.LazyPrintf("error resolving user private repos: %v", err)
-		} else {
-			argsIndexed.UserPrivateRepos = userPrivateRepos
-		}
-
-		wg := waitGroup(true)
-		if args.ResultTypes.Has(result.TypeFile | result.TypePath) {
-			wg.Add(1)
-			goroutine.Go(func() {
-				defer wg.Done()
-				ctx, stream, cleanup := streaming.WithLimit(ctx, agg, int(argsIndexed.PatternInfo.FileMatchLimit))
-				defer cleanup()
-
-				// This code path implies global-search (3rd arg is true).
-				zoektArgs, err := zoekt.NewIndexedSearchRequest(ctx, &argsIndexed, true, search.TextRequest, zoekt.MissingRepoRevStatus(stream))
-				if err != nil {
-					agg.Error(err)
-					return
-				}
-
-				searcherArgs := &search.SearcherParameters{
-					SearcherURLs:    argsIndexed.SearcherURLs,
-					PatternInfo:     argsIndexed.PatternInfo,
-					UseFullDeadline: argsIndexed.UseFullDeadline,
-				}
-				// This code path implies not-only-searcher is run (3rd arg is true)
-				_ = agg.DoFilePathSearch(ctx, zoektArgs, searcherArgs, true, stream)
+			// Get all private repos for the the current actor. On sourcegraph.com, those are
+			// only the repos directly added by the user. Otherwise it's all repos the user has
+			// access to on all connected code hosts / external services.
+			userPrivateRepos, err := database.Repos(r.db).ListRepoNames(ctx, database.ReposListOptions{
+				UserID:       userID, // Zero valued when not in sourcegraph.com mode
+				OnlyPrivate:  true,
+				LimitOffset:  &database.LimitOffset{Limit: search.SearchLimits(conf.Get()).MaxRepos + 1},
+				OnlyForks:    args.RepoOptions.OnlyForks,
+				NoForks:      args.RepoOptions.NoForks,
+				OnlyArchived: args.RepoOptions.OnlyArchived,
+				NoArchived:   args.RepoOptions.NoArchived,
 			})
-		}
 
-		if args.ResultTypes.Has(result.TypeSymbol) {
-			wg.Add(1)
-			goroutine.Go(func() {
-				defer wg.Done()
-				// This code path implies not-only-searcher is run (3rd arg is true) and global-search is run (4rd arg is true)
-				_ = agg.DoSymbolSearch(ctx, &argsIndexed, true, true, limit)
-			})
+			if err != nil {
+				log15.Error("doResults: failed to list user private repos", "error", err, "user-id", userID)
+				tr.LazyPrintf("error resolving user private repos: %v", err)
+			}
+
+			// argsIndexed.UserPrivateRepos = userPrivateRepos
+			// RepoUniverseTextSearch.Run(ctx, stream, userPrivateRepos)
+
+			// XXX args.Indexed needs
+			/*
+				if args.ResultTypes.Has(result.TypeSymbol) {
+					wg.Add(1)
+					goroutine.Go(func() {
+						defer wg.Done()
+						// This code path implies not-only-searcher is run (3rd arg is true) and global-search is run (4rd arg is true)
+						_ = agg.DoSymbolSearch(ctx, &argsIndexed, true, true, limit)
+					})
+				}
+			*/
 		}
 	}
 
