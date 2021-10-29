@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+	zoektquery "github.com/google/zoekt/query"
 	"github.com/inconshreveable/log15"
 	"github.com/neelance/parallel"
 	"github.com/opentracing/opentracing-go"
@@ -634,18 +635,18 @@ func (r *searchResolver) toSearchInputs(q query.Q) (*search.TextParameters, []ru
 		skipUnindexed := args.Mode == search.SkipUnindexed || (globalSearch && envvar.SourcegraphDotComMode())
 		searcherOnly := args.Mode == search.SearcherOnly || (globalSearch && !envvar.SourcegraphDotComMode())
 
-		// Global Text Search.
-		if globalSearch {
-			if args.ResultTypes.Has(result.TypeFile | result.TypePath) {
-
-			}
-		}
-
-		// Non-global Text Search.
+		// Text Search
 		if args.ResultTypes.Has(result.TypeFile | result.TypePath) {
+			searcherArgs := &search.SearcherParameters{
+				SearcherURLs:    args.SearcherURLs,
+				PatternInfo:     args.PatternInfo,
+				UseFullDeadline: args.UseFullDeadline,
+			}
 
-			if !skipUnindexed {
-				typ := search.TextRequest
+			typ := search.TextRequest
+
+			// Global Text Search.
+			if globalSearch {
 				// TODO(rvantonder): we don't always have to run
 				// this converter. It depends on whether we run
 				// a zoekt search at all.
@@ -653,6 +654,47 @@ func (r *searchResolver) toSearchInputs(q query.Q) (*search.TextParameters, []ru
 				if err != nil {
 					return nil, nil, err
 				}
+
+				var repoOptions search.RepoOptions // TODO
+				defaultScopeQuery, err := zoektutil.DefaultScopeStatic(repoOptions)
+				if err != nil {
+					return nil, nil, err
+				}
+				includePrivate := repoOptions.Visibility == query.Private || repoOptions.Visibility == query.Any
+				modifiableZoektQuery := zoektutil.NewScopedZoektQuery(zoektQuery, []zoektquery.Q{defaultScopeQuery}, includePrivate)
+
+				zoektArgs := &search.ZoektParameters{
+					Query:          zoektQuery, // FIXME Yikes not source of truth.
+					Typ:            typ,
+					FileMatchLimit: args.PatternInfo.FileMatchLimit,
+					Select:         args.PatternInfo.Select,
+					Zoekt:          args.Zoekt,
+				}
+
+				jobs = append(jobs, &unindexed.RepoUniverseTextSearch{
+					ZoektQuery: modifiableZoektQuery,
+
+					ZoektArgs:         zoektArgs,
+					SearcherArgs:      searcherArgs,
+					FileMatchLimit:    args.PatternInfo.FileMatchLimit,
+					NotSearcherOnly:   !searcherOnly,
+					UseIndex:          args.PatternInfo.Index,
+					ContainsRefGlobs:  query.ContainsRefGlobs(q),
+					OnMissingRepoRevs: zoektutil.MissingRepoRevStatus(r.stream),
+				})
+
+			}
+
+			// Non-global Text Search.
+			if !skipUnindexed {
+				// TODO(rvantonder): we don't always have to run
+				// this converter. It depends on whether we run
+				// a zoekt search at all.
+				zoektQuery, err := search.QueryToZoektQuery(args.PatternInfo, typ)
+				if err != nil {
+					return nil, nil, err
+				}
+
 				zoektArgs := &search.ZoektParameters{
 					Query:          zoektQuery,
 					Typ:            typ,
@@ -661,13 +703,7 @@ func (r *searchResolver) toSearchInputs(q query.Q) (*search.TextParameters, []ru
 					Zoekt:          args.Zoekt,
 				}
 
-				searcherArgs := &search.SearcherParameters{
-					SearcherURLs:    args.SearcherURLs,
-					PatternInfo:     args.PatternInfo,
-					UseFullDeadline: args.UseFullDeadline,
-				}
-
-				jobs = append(jobs, &unindexed.TextSearch{
+				jobs = append(jobs, &unindexed.RepoSubsetTextSearch{
 					ZoektArgs:         zoektArgs,
 					SearcherArgs:      searcherArgs,
 					FileMatchLimit:    args.PatternInfo.FileMatchLimit,

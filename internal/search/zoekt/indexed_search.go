@@ -850,3 +850,63 @@ func limitUnindexedRepos(unindexed []*search.RepositoryRevisions, limit int, onM
 
 	return unindexed
 }
+
+func DefaultScopeStatic(repoOptions search.RepoOptions) (zoektquery.Q, error) {
+	// Public or Any
+	if repoOptions.Visibility == query.Public || repoOptions.Visibility == query.Any {
+		rc := zoektquery.RcOnlyPublic
+		apply := func(f zoektquery.RawConfig, b bool) {
+			if !b {
+				return
+			}
+			rc |= f
+		}
+		apply(zoektquery.RcOnlyArchived, repoOptions.OnlyArchived)
+		apply(zoektquery.RcNoArchived, repoOptions.NoArchived)
+		apply(zoektquery.RcOnlyForks, repoOptions.OnlyForks)
+		apply(zoektquery.RcNoForks, repoOptions.NoForks)
+
+		children := []zoektquery.Q{&zoektquery.Branch{Pattern: "HEAD", Exact: true}, rc}
+		for _, pat := range repoOptions.MinusRepoFilters {
+			re, err := regexp.Compile(`(?i)` + pat)
+			if err != nil {
+				// TODO don't need to do this
+				return nil, errors.Wrapf(err, "invalid regex for -repo filter %q", pat)
+			}
+			children = append(children, &zoektquery.Not{Child: &zoektquery.RepoRegexp{Regexp: re}})
+		}
+		return zoektquery.NewAnd(children...), nil
+	}
+	return &zoektquery.Const{Value: false}, nil // TODO whatever
+}
+
+type ModifiableZoektQuery struct {
+	query          zoektquery.Q
+	repoScope      []zoektquery.Q
+	includePrivate bool
+}
+
+func NewScopedZoektQuery(query zoektquery.Q, scope []zoektquery.Q, includePrivate bool) *ModifiableZoektQuery {
+	if scope == nil {
+		scope = []zoektquery.Q{}
+	}
+	return &ModifiableZoektQuery{
+		query:          query,
+		repoScope:      scope,
+		includePrivate: includePrivate,
+	}
+}
+
+func (q *ModifiableZoektQuery) ApplyPrivateFilter(userPrivateRepos []types.RepoName) {
+	if q.includePrivate && len(userPrivateRepos) > 0 {
+		ids := make([]uint32, 0, len(userPrivateRepos))
+		for _, r := range userPrivateRepos {
+			ids = append(ids, uint32(r.ID))
+		}
+		q.repoScope = append(q.repoScope, zoektquery.NewSingleBranchesRepos("HEAD", ids...))
+	}
+}
+
+func (q *ModifiableZoektQuery) Generate() zoektquery.Q {
+	return zoektquery.Simplify(zoektquery.NewAnd(q.query, zoektquery.NewOr(q.repoScope...)))
+}
