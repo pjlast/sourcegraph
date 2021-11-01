@@ -105,7 +105,7 @@ func Frontend() *monitoring.Container {
 
 							Critical: monitoring.Alert().GreaterOrEqual(2, nil),
 							Panel:    monitoring.Panel().LegendFormat("latency").Unit(monitoring.Seconds),
-							Owner:    monitoring.ObservableOwnerCoreApplication,
+							Owner:    monitoring.ObservableOwnerCloudSaas,
 							PossibleSolutions: `
 								- Confirm that the Sourcegraph frontend has enough CPU/memory using the provisioning panels.
 								- Trace a request to see what the slowest part is: https://docs.sourcegraph.com/admin/observability/tracing
@@ -117,7 +117,7 @@ func Frontend() *monitoring.Container {
 							Query:       `histogram_quantile(0.9, sum by(le) (rate(src_http_request_duration_seconds_bucket{route="blob"}[10m])))`,
 							Critical:    monitoring.Alert().GreaterOrEqual(5, nil),
 							Panel:       monitoring.Panel().LegendFormat("latency").Unit(monitoring.Seconds),
-							Owner:       monitoring.ObservableOwnerCoreApplication,
+							Owner:       monitoring.ObservableOwnerCloudSaas,
 							PossibleSolutions: `
 								- Confirm that the Sourcegraph frontend has enough CPU/memory using the provisioning panels.
 								- Trace a request to see what the slowest part is: https://docs.sourcegraph.com/admin/observability/tracing
@@ -377,7 +377,7 @@ func Frontend() *monitoring.Container {
 							Query:       `sum by(category) (increase(src_frontend_internal_request_duration_seconds_count{code!~"2.."}[5m])) / ignoring(code) group_left sum(increase(src_frontend_internal_request_duration_seconds_count[5m])) * 100`,
 							Warning:     monitoring.Alert().GreaterOrEqual(5, nil).For(15 * time.Minute),
 							Panel:       monitoring.Panel().LegendFormat("{{category}}").Unit(monitoring.Percentage),
-							Owner:       monitoring.ObservableOwnerCoreApplication,
+							Owner:       monitoring.ObservableOwnerCloudSaas,
 							PossibleSolutions: `
 								- May not be a substantial issue, check the 'frontend' logs for potential causes.
 							`,
@@ -428,10 +428,10 @@ func Frontend() *monitoring.Container {
 
 			// Resource monitoring
 			shared.NewDatabaseConnectionsMonitoringGroup("frontend"),
-			shared.NewContainerMonitoringGroup(containerName, monitoring.ObservableOwnerCoreApplication, nil),
-			shared.NewProvisioningIndicatorsGroup(containerName, monitoring.ObservableOwnerCoreApplication, nil),
-			shared.NewGolangMonitoringGroup(containerName, monitoring.ObservableOwnerCoreApplication, nil),
-			shared.NewKubernetesMonitoringGroup(containerName, monitoring.ObservableOwnerCoreApplication, nil),
+			shared.NewContainerMonitoringGroup(containerName, monitoring.ObservableOwnerCloudSaas, nil),
+			shared.NewProvisioningIndicatorsGroup(containerName, monitoring.ObservableOwnerCloudSaas, nil),
+			shared.NewGolangMonitoringGroup(containerName, monitoring.ObservableOwnerCloudSaas, nil),
+			shared.NewKubernetesMonitoringGroup(containerName, monitoring.ObservableOwnerCloudSaas, nil),
 
 			{
 				Title:  "Sentinel queries (only on sourcegraph.com)",
