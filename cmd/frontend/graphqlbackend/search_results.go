@@ -1737,6 +1737,8 @@ func (r *searchResolver) doResults(ctx context.Context, args *search.TextParamet
 			return waitGroup(args.ResultTypes.Without(result.TypeDiff) == 0)
 		case "Commit":
 			return waitGroup(args.ResultTypes.Without(result.TypeCommit) == 0)
+		case "Symbol":
+			return waitGroup(args.ResultTypes.Without(result.TypeSymbol) == 0)
 		case "Text":
 			return waitGroup(true)
 		case "Structural":
