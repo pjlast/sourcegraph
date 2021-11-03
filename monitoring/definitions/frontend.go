@@ -117,7 +117,7 @@ func Frontend() *monitoring.Container {
 							Query:       `histogram_quantile(0.9, sum by(le) (rate(src_http_request_duration_seconds_bucket{route="blob"}[10m])))`,
 							Critical:    monitoring.Alert().GreaterOrEqual(5, nil),
 							Panel:       monitoring.Panel().LegendFormat("latency").Unit(monitoring.Seconds),
-							Owner:       monitoring.ObservableOwnerCloudSaaS,
+							Owner:       monitoring.ObservableOwnerCoreApplication,
 							PossibleSolutions: `
 								- Confirm that the Sourcegraph frontend has enough CPU/memory using the provisioning panels.
 								- Trace a request to see what the slowest part is: https://docs.sourcegraph.com/admin/observability/tracing
