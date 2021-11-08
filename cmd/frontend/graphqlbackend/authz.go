@@ -63,15 +63,12 @@ type PermissionsInfoResolver interface {
 
 var (
 	// subRepoPermsInstance should be initialized and used only via SubRepoPerms().
-	//nolint:unused
 	subRepoPermsInstance authz.SubRepoPermissionChecker
-	//nolint:unused
-	subRepoPermsOnce sync.Once
+	subRepoPermsOnce     sync.Once
 )
 
 // subRepoPermsClient returns a global instance of the SubRepoPermissionsChecker for use in
 // graphqlbackend only.
-//nolint:unused
 func subRepoPermsClient(db database.DB) authz.SubRepoPermissionChecker {
 	subRepoPermsOnce.Do(func() {
 		subRepoPermsInstance = authz.NewSubRepoPermsClient(database.SubRepoPerms(db))
