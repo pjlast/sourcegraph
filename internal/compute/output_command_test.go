@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/hexops/autogold"
+
+	"github.com/sourcegraph/sourcegraph/internal/search/result"
 )
 
 func Test_output(t *testing.T) {
@@ -14,7 +16,7 @@ func Test_output(t *testing.T) {
 		if err != nil {
 			return err.Error()
 		}
-		return result.Value
+		return result
 	}
 
 	autogold.Want(
@@ -24,5 +26,28 @@ func Test_output(t *testing.T) {
 			MatchPattern:  &Regexp{Value: regexp.MustCompile(`(\d)`)},
 			OutputPattern: "($1)",
 			Separator:     "~",
+		}))
+}
+
+func TestRun(t *testing.T) {
+	test := func(input string, fm *result.FileMatch) string {
+		q, _ := Parse(input)
+		res, err := q.Command.Run(context.Background(), fm)
+		if err != nil {
+			return err.Error()
+		}
+		return res.(*Text).Value
+	}
+
+	autogold.Want(
+		"template substitution",
+		"(1)\n(2)\n(3)\n").
+		Equal(t, test(`content:output((\d) -> $Path:($1))`, &result.FileMatch{
+			File: result.File{Path: "my/awesome/path"},
+			LineMatches: []*result.LineMatch{
+				{
+					Preview: "a 1 b 2 c 3",
+				},
+			},
 		}))
 }

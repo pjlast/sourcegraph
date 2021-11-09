@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -60,4 +61,23 @@ func Test_parse(t *testing.T) {
 		"metachar escaping",
 		`[{"constant":"$repo "}]`).
 		Equal(t, test(`\$repo `))
+}
+
+func Test_templatize(t *testing.T) {
+	test := func(input string, data interface{}) string {
+		t, err := templatize(input)
+		if err != nil {
+			return fmt.Sprintf("Error: %s", err)
+		}
+		var result bytes.Buffer
+		if err := t.Execute(&result, data); err != nil {
+			return fmt.Sprintf("Error: %s", err)
+		}
+		return result.String()
+	}
+
+	autogold.Want(
+		"substitute",
+		"yo I'm substituted").
+		Equal(t, test(`$repo`, struct{ Repo string }{Repo: "yo I'm substituted"}))
 }

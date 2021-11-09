@@ -139,8 +139,25 @@ func parseReplaceTemplate(buf []byte) (*Template, error) {
 }
 
 func templatize(pattern string) (*template.Template, error) {
-	template.New("").Parse("")
-	return nil, nil
+	t, err := parseReplaceTemplate([]byte(pattern))
+	if err != nil {
+		return nil, err
+	}
+	var templatized []string
+	for _, atom := range *t {
+		switch a := atom.(type) {
+		case Constant:
+			templatized = append(templatized, string(a))
+		case Variable:
+			templateVar := strings.Title(a.Value[1:])
+			templatized = append(templatized, `{{.`+templateVar+`}}`)
+		}
+	}
+	template, err := template.New("dontcare").Parse(strings.Join(templatized, ""))
+	if err != nil {
+		return nil, err
+	}
+	return template, nil
 }
 
 func toJSON(atom Atom) interface{} {
