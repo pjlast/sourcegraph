@@ -9,6 +9,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/compute"
 	"github.com/sourcegraph/sourcegraph/internal/database"
 	"github.com/sourcegraph/sourcegraph/internal/search/result"
+	"github.com/sourcegraph/sourcegraph/internal/search/streaming"
 	"github.com/sourcegraph/sourcegraph/internal/types"
 )
 
@@ -238,4 +239,70 @@ func NewComputeImplementer(ctx context.Context, db database.DB, args *ComputeArg
 
 func (r *schemaResolver) Compute(ctx context.Context, args *ComputeArgs) ([]*computeResultResolver, error) {
 	return NewComputeImplementer(ctx, r.db, args)
+}
+
+func toComputeResult(ctx context.Context, cmd compute.Command, matches []result.Match) (*compute.Event, error) {
+	results := make([]compute.Result, 0, len(matches))
+	for _, m := range matches {
+		if fm, ok := m.(*result.FileMatch); ok {
+			result, err := cmd.Run(ctx, fm)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, result)
+		}
+	}
+	return &compute.Event{Results: results}, nil
+}
+
+func NewComputeImplementerStream(ctx context.Context, db database.DB, args *ComputeArgs) (<-chan compute.Event, func() error) {
+	computeQuery, err := compute.Parse(args.Query)
+	if err != nil {
+		return nil, func() error { return err }
+	}
+
+	searchQuery, err := computeQuery.ToSearchQuery()
+	if err != nil {
+		return nil, func() error { return err }
+	}
+
+	eventsC := make(chan compute.Event)
+	searchStream := streaming.StreamFunc(func(event streaming.SearchEvent) {
+		if len(event.Results) > 0 {
+			result, err := toComputeResult(ctx, computeQuery.Command, event.Results)
+			if err != nil {
+				return
+			}
+			eventsC <- *result
+		}
+	})
+
+	patternType := "regexp"
+	searchArgs := &SearchArgs{
+		Query:       searchQuery,
+		PatternType: &patternType,
+		Stream:      searchStream,
+	}
+	job, err := NewSearchImplementer(ctx, database.NewDB(db), searchArgs)
+	if err != nil {
+		close(eventsC)
+		return eventsC, func() error { return err }
+	}
+
+	type finalResult struct {
+		err error
+	}
+	final := make(chan finalResult, 1)
+	go func() {
+		defer close(final)
+		defer close(eventsC)
+
+		_, err := job.Results(ctx)
+		final <- finalResult{err: err}
+	}()
+
+	return eventsC, func() error {
+		f := <-final
+		return f.err
+	}
 }

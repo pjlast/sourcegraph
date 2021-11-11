@@ -19,6 +19,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/envvar"
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/graphqlbackend"
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/internal/app/updatecheck"
+	"github.com/sourcegraph/sourcegraph/cmd/frontend/internal/compute"
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/internal/handlerutil"
 	apirouter "github.com/sourcegraph/sourcegraph/cmd/frontend/internal/httpapi/router"
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/internal/httpapi/webhookhandlers"
@@ -82,6 +83,7 @@ func NewHandler(db database.DB, m *mux.Router, schema *graphql.Schema, githubWeb
 	m.Get(apirouter.GraphQL).Handler(trace.Route(handler(serveGraphQL(schema, rateLimiter, false))))
 
 	m.Get(apirouter.SearchStream).Handler(trace.Route(frontendsearch.StreamHandler(db)))
+	m.Get(apirouter.ComputeStream).Handler(trace.Route(compute.NewComputeStreamHandler(db)))
 
 	// Return the minimum src-cli version that's compatible with this instance
 	m.Get(apirouter.SrcCliVersion).Handler(trace.Route(handler(srcCliVersionServe)))
