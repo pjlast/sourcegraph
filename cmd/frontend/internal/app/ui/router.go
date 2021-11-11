@@ -22,6 +22,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/globals"
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/graphqlbackend"
 	uirouter "github.com/sourcegraph/sourcegraph/cmd/frontend/internal/app/ui/router"
+	"github.com/sourcegraph/sourcegraph/cmd/frontend/internal/compute"
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/internal/routevar"
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/internal/search"
 	"github.com/sourcegraph/sourcegraph/internal/database"
@@ -77,6 +78,7 @@ const (
 	routeViews                   = "views"
 	routeDevToolTime             = "devtooltime"
 
+	routeComputeStream  = "compute.stream"
 	routeSearchStream   = "search.stream"
 	routeSearchConsole  = "search.console"
 	routeSearchNotebook = "search.notebook"
@@ -134,6 +136,7 @@ func newRouter() *mux.Router {
 	r.Path("/search").Methods("GET").Name(routeSearch)
 	r.Path("/search/badge").Methods("GET").Name(routeSearchBadge)
 	r.Path("/search/stream").Methods("GET").Name(routeSearchStream)
+	r.Path("/compute/stream").Methods("GET").Name(routeComputeStream)
 	r.Path("/search/console").Methods("GET").Name(routeSearchConsole)
 	r.Path("/search/notebook").Methods("GET").Name(routeSearchNotebook)
 	r.Path("/sign-in").Methods("GET").Name(uirouter.RouteSignIn)
@@ -286,6 +289,9 @@ func initRouter(db database.DB, router *mux.Router, codeIntelResolver graphqlbac
 
 	// streaming search
 	router.Get(routeSearchStream).Handler(search.StreamHandler(db))
+
+	// compute search
+	router.Get(routeComputeStream).Handler(compute.NewComputeStreamHandler(database.NewDB(db)))
 
 	// search badge
 	router.Get(routeSearchBadge).Handler(searchBadgeHandler())

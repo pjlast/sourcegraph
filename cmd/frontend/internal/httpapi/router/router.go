@@ -11,7 +11,8 @@ const (
 	LSIFUpload = "lsif.upload"
 	GraphQL    = "graphql"
 
-	SearchStream = "search.stream"
+	SearchStream  = "search.stream"
+	ComputeStream = "compute.stream"
 
 	SrcCliVersion  = "src-cli.version"
 	SrcCliDownload = "src-cli.download"
@@ -55,6 +56,7 @@ const (
 	ExternalServiceConfigs = "internal.external-services.configs"
 	ExternalServicesList   = "internal.external-services.list"
 	StreamingSearch        = "internal.stream-search"
+	StreamingCompute       = "internal.stream-compute"
 )
 
 // New creates a new API router with route URL pattern definitions but
@@ -73,6 +75,7 @@ func New(base *mux.Router) *mux.Router {
 	base.Path("/bitbucket-server-webhooks").Methods("POST").Name(BitbucketServerWebhooks)
 	base.Path("/lsif/upload").Methods("POST").Name(LSIFUpload)
 	base.Path("/search/stream").Methods("GET").Name(SearchStream)
+	base.Path("/compute/stream").Methods("GET").Name(ComputeStream)
 	base.Path("/src-cli/version").Methods("GET").Name(SrcCliVersion)
 	base.Path("/src-cli/{rest:.*}").Methods("GET").Name(SrcCliDownload)
 
@@ -127,6 +130,7 @@ func NewInternal(base *mux.Router) *mux.Router {
 	base.Path("/telemetry").Methods("POST").Name(Telemetry)
 	base.Path("/lsif/upload").Methods("POST").Name(LSIFUpload)
 	base.Path("/search/stream").Methods("GET").Name(StreamingSearch)
+	base.Path("/compute/stream").Methods("GET").Name(StreamingCompute)
 	addRegistryRoute(base)
 	addGraphQLRoute(base)
 
