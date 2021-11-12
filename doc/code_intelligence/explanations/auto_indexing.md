@@ -8,6 +8,8 @@
 
 Auto-indexing is a experimental feature (therefore light on documentation). Stay tuned while we fill out context!
 
+TODO
+
 For now here's some documentation we _do_ have:
 
 - [Enable auto-indexing](../how-to/enable_auto_indexing.md)
