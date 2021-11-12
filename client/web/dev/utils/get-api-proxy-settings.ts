@@ -1,7 +1,7 @@
 import { Options } from 'http-proxy-middleware'
 
 // One of the API routes: "/-/sign-in".
-export const PROXY_ROUTES = ['/.api', '/search/stream', '/-', '/.auth']
+export const PROXY_ROUTES = ['/.api', '/search/stream', '/compute/stream', '/-', '/.auth']
 
 interface GetAPIProxySettingsOptions {
     csrfContextValue: string
