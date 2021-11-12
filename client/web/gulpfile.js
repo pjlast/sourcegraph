@@ -103,6 +103,11 @@ async function webpackDevelopmentServer() {
 
   /** @type {import('webpack-dev-server').Configuration} */
   const options = {
+	headers: {
+	  "Access-Control-Allow-Origin": "*",
+	  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+	  "Access-Control-Allow-Headers": "X-Requested-With, content-type, Authorization"
+	},
     // react-refresh plugin triggers page reload if needed.
     liveReload: false,
     hot: !process.env.NO_HOT,

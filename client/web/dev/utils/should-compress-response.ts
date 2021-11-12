@@ -4,6 +4,12 @@ export const shouldCompressResponse: CompressionFilter = (request, response) => 
     // Disable compression because gzip buffers the full response
     // before sending it, which makes streaming search not stream.
     if (request.path.startsWith('/search/stream')) {
+        console.log('DONT COMPRESS SEARCH');
+        return false
+    }
+
+    if (request.path.startsWith('/compute/stream')) {
+        console.log('DONT COMPRESS COMPUTE');
         return false
     }
 

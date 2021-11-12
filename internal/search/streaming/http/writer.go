@@ -38,6 +38,7 @@ func NewWriter(w http.ResponseWriter) (*Writer, error) {
 	// be delayed until buffers get full, leading to worst case latency of the
 	// full time a search takes to complete.
 	w.Header().Set("X-Accel-Buffering", "no")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	return &Writer{
 		w:     w,
