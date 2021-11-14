@@ -512,7 +512,7 @@ func (r *Resolver) actionConnectionResolverWithTriggerID(ctx context.Context, tr
 		return nil, err
 	}
 
-	totalCount, err := r.store.TotalCountActionEmails(ctx, monitorID)
+	totalCount, err := r.store.CountEmailActions(ctx, monitorID)
 	if err != nil {
 		return nil, err
 	}
