@@ -148,7 +148,7 @@ func (r *queryRunner) Handle(ctx context.Context, record workerutil.Record) (err
 	defer func() { err = s.Done(err) }()
 
 	var q *cm.QueryTrigger
-	q, err = s.GetQueryByRecordID(ctx, record.RecordID())
+	q, err = s.GetQueryTriggerForJob(ctx, record.RecordID())
 	if err != nil {
 		return err
 	}
