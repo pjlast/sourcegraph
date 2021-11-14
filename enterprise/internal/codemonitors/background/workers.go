@@ -147,7 +147,7 @@ func (r *queryRunner) Handle(ctx context.Context, record workerutil.Record) (err
 	}
 	defer func() { err = s.Done(err) }()
 
-	var q *cm.MonitorQuery
+	var q *cm.QueryTrigger
 	q, err = s.GetQueryByRecordID(ctx, record.RecordID())
 	if err != nil {
 		return err
@@ -250,7 +250,7 @@ func (r *actionRunner) Handle(ctx context.Context, record workerutil.Record) (er
 
 // newQueryWithAfterFilter constructs a new query which finds search results
 // introduced after the last time we queried.
-func newQueryWithAfterFilter(q *cm.MonitorQuery) string {
+func newQueryWithAfterFilter(q *cm.QueryTrigger) string {
 	// For q.LatestResult = nil we return a query string without after: filter, which
 	// effectively triggers actions immediately provided the query returns any
 	// results.
