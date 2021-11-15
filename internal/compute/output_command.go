@@ -8,6 +8,7 @@ import (
 
 	"github.com/sourcegraph/sourcegraph/internal/comby"
 	"github.com/sourcegraph/sourcegraph/internal/search/result"
+	"github.com/sourcegraph/sourcegraph/internal/vcs/git"
 )
 
 type Output struct {
@@ -53,10 +54,15 @@ func output(ctx context.Context, fragment string, matchPattern MatchPattern, rep
 }
 
 func (c *Output) Run(ctx context.Context, fm *result.FileMatch) (Result, error) {
-	lines := make([]string, 0, len(fm.LineMatches))
-	for _, line := range fm.LineMatches {
-		lines = append(lines, line.Preview)
+	//	lines := make([]string, 0, len(fm.LineMatches))
+	//	for _, line := range fm.LineMatches {
+	//		lines = append(lines, line.Preview)
+	//	}
+	//	fragment := strings.Join(lines, "\n")
+	content, err := git.ReadFile(ctx, fm.Repo.Name, fm.CommitID, fm.Path, 0)
+	if err != nil {
+		return nil, err
 	}
-	fragment := strings.Join(lines, "\n")
-	return output(ctx, fragment, c.MatchPattern, c.OutputPattern, c.Separator)
+
+	return output(ctx, string(content), c.MatchPattern, c.OutputPattern, c.Separator)
 }

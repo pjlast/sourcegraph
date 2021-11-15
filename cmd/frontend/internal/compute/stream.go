@@ -9,6 +9,7 @@ import (
 
 	otlog "github.com/opentracing/opentracing-go/log"
 
+	"github.com/inconshreveable/log15"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/graphqlbackend"
 	"github.com/sourcegraph/sourcegraph/internal/compute"
@@ -60,7 +61,7 @@ func (h *streamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	eventWriter.StatHook = eventStreamOTHook(tr.LogFields)
 
 	events, getErr := graphqlbackend.NewComputeImplementerStream(ctx, h.db, &graphqlbackend.ComputeArgs{Query: args.Query})
-	//	events = batchEvents(events, 50*time.Millisecond)
+	events = batchEvents(events, 50*time.Millisecond)
 
 	// Store marshalled matches and flush periodically or when we go over
 	// 32kb. 32kb chosen to be smaller than bufio.MaxTokenSize. Note: we can
@@ -85,6 +86,7 @@ func (h *streamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		// Instantly send results if we have not sent any yet.
 		if first && matchesBuf.Len() > 0 {
+			log15.Info("flushing first now")
 			first = false
 			matchesFlush()
 		}

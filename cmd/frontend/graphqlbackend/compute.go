@@ -255,6 +255,19 @@ func toComputeResult(ctx context.Context, cmd compute.Command, matches []result.
 	return &compute.Event{Results: results}, nil
 }
 
+func toComputeResultStream(ctx context.Context, cmd compute.Command, matches []result.Match, f func(compute.Result)) error {
+	for _, m := range matches {
+		if fm, ok := m.(*result.FileMatch); ok {
+			result, err := cmd.Run(ctx, fm)
+			if err != nil {
+				return err
+			}
+			f(result)
+		}
+	}
+	return nil
+}
+
 func NewComputeImplementerStream(ctx context.Context, db database.DB, args *ComputeArgs) (<-chan compute.Event, func() error) {
 	computeQuery, err := compute.Parse(args.Query)
 	if err != nil {
@@ -269,11 +282,12 @@ func NewComputeImplementerStream(ctx context.Context, db database.DB, args *Comp
 	eventsC := make(chan compute.Event)
 	searchStream := streaming.StreamFunc(func(event streaming.SearchEvent) {
 		if len(event.Results) > 0 {
-			result, err := toComputeResult(ctx, computeQuery.Command, event.Results)
-			if err != nil {
-				return
+			callback := func(result compute.Result) {
+				eventsC <- compute.Event{Results: []compute.Result{result}}
 			}
-			eventsC <- *result
+			_ = toComputeResultStream(ctx, computeQuery.Command, event.Results, callback)
+			// XXX error ignored monkaW
+			//			eventsC <- *result
 		}
 	})
 
