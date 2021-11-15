@@ -163,8 +163,8 @@ brew services start redis`,
 		ifNotBool: "docker",
 		prompt:    `Ensure psql, the PostgreSQL command line client, is available`,
 		comment:   `So if the previous command show "NOT OK", you can run the command below to fix that`,
-		command: `hash psql || { echo 'export PATH="/usr/local/opt/postgresql/bin:$PATH"' >> ~/.bash_profile }
-source ~/.bash_profile`,
+		command: `hash psql || { echo 'export PATH="/usr/local/opt/postgresql/bin:$PATH"' >> ~/.zshrc }
+source ~/.zshrc`,
 	},
 	{
 		ifNotBool: "docker",
