@@ -19,5 +19,6 @@ func NewCodeIntelUploadHandler(ctx context.Context, conf conftypes.SiteConfigQue
 		services.uploadStore,
 		internal,
 		httpapi.DefaultValidatorByCodeHost,
+		services.hub,
 	), nil
 }

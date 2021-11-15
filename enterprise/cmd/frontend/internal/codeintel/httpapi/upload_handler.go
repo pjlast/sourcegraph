@@ -23,6 +23,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/errcode"
 	"github.com/sourcegraph/sourcegraph/internal/gitserver/gitdomain"
 	"github.com/sourcegraph/sourcegraph/internal/lazyregexp"
+	"github.com/sourcegraph/sourcegraph/internal/sentry"
 	"github.com/sourcegraph/sourcegraph/internal/types"
 	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 )
@@ -35,7 +36,7 @@ type UploadHandler struct {
 	internal    bool
 }
 
-func NewUploadHandler(db dbutil.DB, dbStore DBStore, uploadStore uploadstore.Store, internal bool, authValidators AuthValidatorMap) http.Handler {
+func NewUploadHandler(db dbutil.DB, dbStore DBStore, uploadStore uploadstore.Store, internal bool, authValidators AuthValidatorMap, hub *sentry.Hub) http.Handler {
 	handler := &UploadHandler{
 		db:          db,
 		dbStore:     dbStore,
@@ -44,7 +45,7 @@ func NewUploadHandler(db dbutil.DB, dbStore DBStore, uploadStore uploadstore.Sto
 		validators:  authValidators,
 	}
 
-	return http.HandlerFunc(handler.handleEnqueue)
+	return hub.Recoverer(http.HandlerFunc(handler.handleEnqueue))
 }
 
 var revhashPattern = lazyregexp.New(`^[a-z0-9]{40}$`)
