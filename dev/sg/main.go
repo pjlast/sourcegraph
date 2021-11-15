@@ -63,6 +63,7 @@ var (
 			versionCommand,
 			secretCommand,
 			setupCommand,
+			setup2Command,
 		},
 	}
 )
