@@ -98,7 +98,6 @@ func (s *codeMonitorStore) UpdateMonitor(ctx context.Context, args *graphqlbacke
 		return nil, err
 	}
 
-	now := s.Now()
 	q := sqlf.Sprintf(
 		updateCodeMonitorFmtStr,
 		args.Monitor.Update.Description,
@@ -106,7 +105,7 @@ func (s *codeMonitorStore) UpdateMonitor(ctx context.Context, args *graphqlbacke
 		nilOrInt32(userID),
 		nilOrInt32(orgID),
 		a.UID,
-		now,
+		s.Now(),
 		monitorID,
 		sqlf.Join(monitorColumns, ", "),
 	)
