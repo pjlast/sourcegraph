@@ -14,6 +14,7 @@ All notable changes to Sourcegraph [Browser Extensions](./README.md) are documen
 ## Unreleased
 
 - Fix excessive "all websites" permissions for Safari [#issues/23542](https://github.com/sourcegraph/sourcegraph/issues/23542) [#pull/26832](https://github.com/sourcegraph/sourcegraph/pull/26832)
+- Update private repository detection logic for Gitlab and Github [#issues/27382](https://github.com/sourcegraph/sourcegraph/issues/27382), [#pull/27779](https://github.com/sourcegraph/sourcegraph/pull/27779)
 
 ## Chrome / Firefox v21.11.8.1804, Safari v1.7
 
