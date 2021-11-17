@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/inconshreveable/log15"
 	"github.com/sourcegraph/sourcegraph/internal/comby"
 	"github.com/sourcegraph/sourcegraph/internal/search/result"
 )
@@ -58,5 +59,18 @@ func (c *Output) Run(ctx context.Context, fm *result.FileMatch) (Result, error) 
 		lines = append(lines, line.Preview)
 	}
 	fragment := strings.Join(lines, "\n")
-	return output(ctx, fragment, c.MatchPattern, c.OutputPattern, c.Separator)
+	substitutedOutputPattern := c.OutputPattern
+	substitutedOutputPattern, err := substituteTemplateMetaVariables(
+		c.MatchPattern,
+		c.OutputPattern,
+		&MetaValue{
+			Repo:    string(fm.Repo.Name),
+			Path:    fm.Path,
+			Content: fragment, // FIXME: should be just the matched part once we use files ($0 for regexp)
+		})
+	if err != nil {
+		return nil, err
+	}
+	log15.Info("substituted", "x", substitutedOutputPattern)
+	return output(ctx, fragment, c.MatchPattern, substitutedOutputPattern, c.Separator)
 }

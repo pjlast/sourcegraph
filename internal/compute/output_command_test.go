@@ -70,6 +70,14 @@ func TestRun(t *testing.T) {
 		"(1)\n(2)\n(3)\n").
 		Equal(t, test(`content:output((\d) -> ($1))`, "a 1 b 2 c 3"))
 
+	autogold.Want(
+		"template metavar substitution regexp",
+		`my/awesome/path: (1)
+my/awesome/path: (2)
+my/awesome/path: (3)
+`).
+		Equal(t, test(`content:output((\d) -> $path: ($1))`, "a 1 b 2 c 3"))
+
 	// If we are not on CI skip the test if comby is not installed.
 	if os.Getenv("CI") == "" && !comby.Exists() {
 		t.Skip("comby is not installed on the PATH. Try running 'bash <(curl -sL get.comby.dev)'.")
