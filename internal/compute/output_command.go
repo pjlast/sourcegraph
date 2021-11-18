@@ -60,7 +60,45 @@ func (c *Output) Run(ctx context.Context, r result.Match) (Result, error) {
 		if err != nil {
 			return nil, err
 		}
-		return output(ctx, string(content), c.MatchPattern, c.OutputPattern, c.Separator)
+		outputPattern, err := substituteMetaVariables(
+			c.OutputPattern,
+			&MetaValue{
+				Repo:    string(m.Repo.Name),
+				Path:    m.Path,
+				Commit:  string(m.CommitID),
+				Content: string(content),
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+		return output(ctx, string(content), c.MatchPattern, outputPattern, c.Separator)
+
+	case *result.CommitMatch:
+		var content string
+		if m.DiffPreview != nil {
+			// This is a diff result. Use Body, which is actually
+			// ```diff <...>``` markdown, because I don't think we
+			// expose it without markdown.
+			content = m.Body.Value
+		} else {
+			content = string(m.Commit.Message)
+		}
+		outputPattern, err := substituteMetaVariables(
+			c.OutputPattern,
+			&MetaValue{
+				Repo:    string(m.Repo.Name),
+				Commit:  string(m.Commit.ID),
+				Author:  m.Commit.Author.Name,
+				Date:    m.Commit.Committer.Date.Format("2006-01-02 15:04:05"),
+				Email:   m.Commit.Committer.Email,
+				Content: content,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+		return output(ctx, content, c.MatchPattern, outputPattern, c.Separator)
 	}
 	return nil, nil
 }

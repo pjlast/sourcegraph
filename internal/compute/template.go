@@ -175,12 +175,24 @@ func toJSONString(template *Template) string {
 	return string(json)
 }
 
+type MetaValue struct {
+	Repo    string
+	Path    string
+	Content string
+	Commit  string
+	Author  string
+	Date    string
+	Email   string
+}
+
 var builtinVariables = []string{
 	"repo",
 	"path",
 	"content",
 	"commit",
 	"author",
+	"date",
+	"email",
 }
 
 func isBuiltinVariable(str string) bool {
