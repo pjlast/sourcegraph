@@ -24,7 +24,7 @@ func newWithConfig(cfg *pgx.ConnConfig) (*sql.DB, error) {
 		return nil, errors.Wrap(err, "DB not available")
 	}
 
-	if err := checkVersion(db); err != nil {
+	if err := ensureMinimumPostgresVersion(db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}

@@ -11,7 +11,7 @@ import (
 
 var versionPattern = lazyregexp.New(`^PostgreSQL (\d+)\.`)
 
-func checkVersion(db *sql.DB) error {
+func ensureMinimumPostgresVersion(db *sql.DB) error {
 	var version string
 	if err := db.QueryRow("SELECT version();").Scan(&version); err != nil {
 		return errors.Wrap(err, "failed version check")
