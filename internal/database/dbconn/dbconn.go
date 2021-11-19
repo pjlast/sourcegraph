@@ -254,20 +254,6 @@ func isDatabaseLikelyStartingUp(err error) bool {
 
 var registerOnce sync.Once
 
-// Open creates a new DB handle with the given schema by connecting to
-// the database identified by dataSource (e.g., "dbname=mypgdb" or
-// blank to use the PG* env vars).
-//
-// Open assumes that the database already exists.
-func Open(dataSource string) (*sql.DB, error) {
-	cfg, err := pgx.ParseConfig(dataSource)
-	if err != nil {
-		return nil, err
-	}
-
-	return open(cfg)
-}
-
 func open(cfg *pgx.ConnConfig) (*sql.DB, error) {
 	cfgKey := stdlib.RegisterConnConfig(cfg)
 
@@ -297,10 +283,6 @@ func open(cfg *pgx.ConnConfig) (*sql.DB, error) {
 
 	return db, nil
 }
-
-// Ping attempts to contact the database and returns a non-nil error upon failure. It is intended to
-// be used by health checks.
-func Ping(ctx context.Context) error { return Global.PingContext(ctx) }
 
 type key int
 
