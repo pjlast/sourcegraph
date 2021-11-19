@@ -1,7 +1,3 @@
-// Package dbconn provides functionality to connect to our DB and migrate it.
-//
-// Most services should connect to the frontend for DB access instead, using
-// api.InternalClient.
 package dbconn
 
 import (
