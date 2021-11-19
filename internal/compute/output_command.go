@@ -90,7 +90,7 @@ func (c *Output) Run(ctx context.Context, r result.Match) (Result, error) {
 				Repo:    string(m.Repo.Name),
 				Commit:  string(m.Commit.ID),
 				Author:  m.Commit.Author.Name,
-				Date:    m.Commit.Committer.Date.Format("2006-01-02 15:04:05"),
+				Date:    m.Commit.Committer.Date.Format("2006-01-02"),
 				Email:   m.Commit.Committer.Email,
 				Content: content,
 			},
