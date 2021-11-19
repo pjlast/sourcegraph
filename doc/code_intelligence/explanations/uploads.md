@@ -1,3 +1,3 @@
 # Precise code intelligence uploads
 
-TODO
+![Upload state diagram](./diagrams/upload-states.svg)
