@@ -60,24 +60,28 @@ func openDBWithStartupWait(cfg *pgx.ConnConfig) (db *sql.DB, err error) {
 	}
 }
 
+func registerPostgresProxy() {
+	m := promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "src_pgsql_request_total",
+		Help: "Total number of SQL requests to the database.",
+	}, []string{"type"})
+
+	sql.Register("postgres-proxy", sqlhooks.Wrap(stdlib.GetDefaultDriver(), combineHooks(
+		&metricHooks{
+			metricSQLSuccessTotal: m.WithLabelValues("success"),
+			metricSQLErrorTotal:   m.WithLabelValues("error"),
+		},
+		&tracingHooks{},
+	)))
+}
+
 var registerOnce sync.Once
 
 func open(cfg *pgx.ConnConfig) (*sql.DB, error) {
 	cfgKey := stdlib.RegisterConnConfig(cfg)
 
-	registerOnce.Do(func() {
-		m := promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "src_pgsql_request_total",
-			Help: "Total number of SQL requests to the database.",
-		}, []string{"type"})
-		sql.Register("postgres-proxy", sqlhooks.Wrap(stdlib.GetDefaultDriver(), combineHooks(
-			&metricHooks{
-				metricSQLSuccessTotal: m.WithLabelValues("success"),
-				metricSQLErrorTotal:   m.WithLabelValues("error"),
-			},
-			&tracingHooks{},
-		)))
-	})
+	registerOnce.Do(registerPostgresProxy)
+
 	db, err := sql.Open("postgres-proxy", cfgKey)
 	if err != nil {
 		return nil, errors.Wrap(err, "postgresql open")
