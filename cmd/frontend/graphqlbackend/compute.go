@@ -267,6 +267,7 @@ func toComputeResultStream(ctx context.Context, cmd compute.Command, matches []r
 	return nil
 }
 
+// 18
 func NewComputeImplementerStream(ctx context.Context, db database.DB, args *ComputeArgs) (<-chan compute.Event, func() error) {
 	computeQuery, err := compute.Parse(args.Query)
 	if err != nil {
