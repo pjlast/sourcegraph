@@ -37,20 +37,20 @@ func combineHooks(hooks ...sqlhooks.Hooks) sqlhooks.Hooks {
 }
 
 func (h *hookCollection) Before(ctx context.Context, query string, args ...interface{}) (_ context.Context, err error) {
-	return runHooks(ctx, h.beforeHooks, query, args)
+	return runHooks(ctx, h.beforeHooks, query, args...)
 }
 
 func (h *hookCollection) After(ctx context.Context, query string, args ...interface{}) (_ context.Context, err error) {
-	return runHooks(ctx, h.afterHooks, query, args)
+	return runHooks(ctx, h.afterHooks, query, args...)
 }
 
 func (h *hookCollection) OnError(ctx context.Context, err error, query string, args ...interface{}) error {
-	return runErrorHooks(ctx, h.errorHooks, err, query, args)
+	return runErrorHooks(ctx, h.errorHooks, err, query, args...)
 }
 
 func runHooks(ctx context.Context, hooks []sqlhooks.Hook, query string, args ...interface{}) (_ context.Context, err error) {
 	for _, hook := range hooks {
-		ctx, err = hook(ctx, query, args)
+		ctx, err = hook(ctx, query, args...)
 		if err != nil {
 			break
 		}
@@ -61,7 +61,7 @@ func runHooks(ctx context.Context, hooks []sqlhooks.Hook, query string, args ...
 
 func runErrorHooks(ctx context.Context, hooks []sqlhooks.ErrorHook, err error, query string, args ...interface{}) error {
 	for _, hook := range hooks {
-		err = hook(ctx, err, query, args)
+		err = hook(ctx, err, query, args...)
 	}
 
 	return err
