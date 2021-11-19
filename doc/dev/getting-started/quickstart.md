@@ -37,18 +37,6 @@ Follow the printed instructions.
 
 They will guide you through the installation of all the necessary dependencies to start the local development environment.
 
-## Starting the databases
-
-If you chose to run PostgreSQL and Redis **without Docker** they should already be running. You can jump the next section.
-
-If you chose to run Redis and PostgreSQL **with Docker** to then we need to run them:
-
-```sh
-sg run redis-postgres
-```
-
-Keep this process running in a terminal window to keep the databases running. Follow the rest of the instructions in another terminal.
-
 ## Start the server
 
 **If you are a Sourcegraph employee**: start the local development server for Sourcegraph Enterprise with the following command:
