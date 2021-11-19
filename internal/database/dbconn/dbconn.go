@@ -105,26 +105,6 @@ func newWithConfig(cfg *pgx.ConnConfig) (*sql.DB, error) {
 	return db, nil
 }
 
-var versionPattern = lazyregexp.New(`^PostgreSQL (\d+)\.`)
-
-func checkVersion(db *sql.DB) error {
-	var version string
-	if err := db.QueryRow("SELECT version();").Scan(&version); err != nil {
-		return errors.Wrap(err, "failed version check")
-	}
-
-	match := versionPattern.FindStringSubmatch(version)
-	if len(match) == 0 {
-		return errors.Errorf("unexpected version string: %q", version)
-	}
-
-	if majorVersion, _ := strconv.Atoi(match[1]); majorVersion < 12 {
-		return errors.Errorf("Sourcegraph requires PostgreSQL 12+")
-	}
-
-	return nil
-}
-
 var startupTimeout = func() time.Duration {
 	str := env.Get("DB_STARTUP_TIMEOUT", "10s", "keep trying for this long to connect to PostgreSQL database before failing")
 	d, err := time.ParseDuration(str)
