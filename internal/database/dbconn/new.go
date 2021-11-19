@@ -3,12 +3,21 @@ package dbconn
 import (
 	"database/sql"
 	"log"
-	"os"
 	"strconv"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/sourcegraph/sourcegraph/internal/env"
 )
+
+var maxOpen = func() int {
+	str := env.Get("SRC_PGSQL_MAX_OPEN", "30", "Maximum number of open connections to Postgres")
+	v, err := strconv.Atoi(str)
+	if err != nil {
+		log.Fatalln("SRC_PGSQL_MAX_OPEN:", err)
+	}
+	return v
+}
 
 // Opts contain arguments passed to database connection initialisation functions.
 type Opts struct {
@@ -41,14 +50,14 @@ func New(opts Opts) (*sql.DB, error) {
 		return nil, err
 	}
 
+	cfg.RuntimeParams["max_conns"] = strconv.Itoa(maxOpen())
+
 	db, err := newWithConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	prometheus.MustRegister(newMetricsCollector(db, opts.DBName, opts.AppName))
-	configureConnectionPool(db)
-
 	return db, nil
 }
 
@@ -62,21 +71,4 @@ func NewRaw(dataSource string) (*sql.DB, error) {
 		return nil, err
 	}
 	return newWithConfig(cfg)
-}
-
-// configureConnectionPool sets reasonable sizes on the built in DB queue. By
-// default the connection pool is unbounded, which leads to the error `pq:
-// sorry too many clients already`.
-func configureConnectionPool(db *sql.DB) {
-	var err error
-	maxOpen := 30
-	if e := os.Getenv("SRC_PGSQL_MAX_OPEN"); e != "" {
-		maxOpen, err = strconv.Atoi(e)
-		if err != nil {
-			log.Fatalf("SRC_PGSQL_MAX_OPEN is not an int: %s", e)
-		}
-	}
-	db.SetMaxOpenConns(maxOpen)
-	db.SetMaxIdleConns(maxOpen)
-	db.SetConnMaxIdleTime(time.Minute)
 }

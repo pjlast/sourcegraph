@@ -18,6 +18,15 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/env"
 )
 
+var startupTimeout = func() time.Duration {
+	str := env.Get("DB_STARTUP_TIMEOUT", "10s", "keep trying for this long to connect to PostgreSQL database before failing")
+	d, err := time.ParseDuration(str)
+	if err != nil {
+		log.Fatalln("DB_STARTUP_TIMEOUT:", err)
+	}
+	return d
+}()
+
 func newWithConfig(cfg *pgx.ConnConfig) (*sql.DB, error) {
 	db, err := openDBWithStartupWait(cfg)
 	if err != nil {
@@ -31,15 +40,6 @@ func newWithConfig(cfg *pgx.ConnConfig) (*sql.DB, error) {
 
 	return db, nil
 }
-
-var startupTimeout = func() time.Duration {
-	str := env.Get("DB_STARTUP_TIMEOUT", "10s", "keep trying for this long to connect to PostgreSQL database before failing")
-	d, err := time.ParseDuration(str)
-	if err != nil {
-		log.Fatalln("DB_STARTUP_TIMEOUT:", err)
-	}
-	return d
-}()
 
 func openDBWithStartupWait(cfg *pgx.ConnConfig) (db *sql.DB, err error) {
 	// Allow the DB to take up to 10s while it reports "pq: the database system is starting up".
