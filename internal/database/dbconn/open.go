@@ -78,11 +78,9 @@ func registerPostgresProxy() {
 var registerOnce sync.Once
 
 func open(cfg *pgx.ConnConfig) (*sql.DB, error) {
-	cfgKey := stdlib.RegisterConnConfig(cfg)
-
 	registerOnce.Do(registerPostgresProxy)
 
-	db, err := sql.Open("postgres-proxy", cfgKey)
+	db, err := sql.Open("postgres-proxy", stdlib.RegisterConnConfig(cfg))
 	if err != nil {
 		return nil, errors.Wrap(err, "postgresql open")
 	}
