@@ -10,6 +10,8 @@ Auto-indexing is a experimental feature (therefore light on documentation). Stay
 
 TODO
 
+![Index state diagram](./diagrams/index-states.svg)
+
 For now here's some documentation we _do_ have:
 
 - [Enable auto-indexing](../how-to/enable_auto_indexing.md)
