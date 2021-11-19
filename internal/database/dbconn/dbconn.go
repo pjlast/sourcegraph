@@ -7,7 +7,6 @@ package dbconn
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -19,14 +18,12 @@ import (
 	"github.com/inconshreveable/log15"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/stdlib"
-	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/qustavo/sqlhooks/v2"
 
 	"github.com/sourcegraph/sourcegraph/internal/env"
 	"github.com/sourcegraph/sourcegraph/internal/lazyregexp"
-	"github.com/sourcegraph/sourcegraph/internal/trace"
 )
 
 var (
@@ -222,10 +219,13 @@ func open(cfg *pgx.ConnConfig) (*sql.DB, error) {
 			Name: "src_pgsql_request_total",
 			Help: "Total number of SQL requests to the database.",
 		}, []string{"type"})
-		sql.Register("postgres-proxy", sqlhooks.Wrap(stdlib.GetDefaultDriver(), &hook{
-			metricSQLSuccessTotal: m.WithLabelValues("success"),
-			metricSQLErrorTotal:   m.WithLabelValues("error"),
-		}))
+		sql.Register("postgres-proxy", sqlhooks.Wrap(stdlib.GetDefaultDriver(), combineHooks(
+			&metricHooks{
+				metricSQLSuccessTotal: m.WithLabelValues("success"),
+				metricSQLErrorTotal:   m.WithLabelValues("error"),
+			},
+			&tracingHooks{},
+		)))
 	})
 	db, err := sql.Open("postgres-proxy", cfgKey)
 	if err != nil {
@@ -262,11 +262,6 @@ func WithBulkInsertion(ctx context.Context, bulkInsertion bool) context.Context 
 	return context.WithValue(ctx, bulkInsertionKey, bulkInsertion)
 }
 
-type hook struct {
-	metricSQLSuccessTotal prometheus.Counter
-	metricSQLErrorTotal   prometheus.Counter
-}
-
 // postgresBulkInsertRowsPattern matches `($1, $2, $3), ($4, $5, $6), ...` which
 // we use to cut out the row payloads from bulk insertion tracing data. We don't
 // need all the parameter data for such requests, which are too big to fit into
@@ -277,60 +272,6 @@ var postgresBulkInsertRowsPattern = lazyregexp.New(`(\([$\d,\s]+\)[,\s]*)+`)
 // postgresBulkInsertRowsReplacement replaces the all-placeholder rows matched
 // by the pattern defined above.
 var postgresBulkInsertRowsReplacement = []byte("(...) ")
-
-// Before implements sqlhooks.Hooks
-func (h *hook) Before(ctx context.Context, query string, args ...interface{}) (context.Context, error) {
-	if BulkInsertion(ctx) {
-		query = string(postgresBulkInsertRowsPattern.ReplaceAll([]byte(query), postgresBulkInsertRowsReplacement))
-	}
-
-	tr, ctx := trace.New(ctx, "sql", query,
-		trace.Tag{Key: "span.kind", Value: "client"},
-		trace.Tag{Key: "database.type", Value: "sql"},
-	)
-
-	if !BulkInsertion(ctx) {
-		tr.LogFields(otlog.Lazy(func(fv otlog.Encoder) {
-			emittedChars := 0
-			for i, arg := range args {
-				k := strconv.Itoa(i + 1)
-				v := fmt.Sprintf("%v", arg)
-				emittedChars += len(k) + len(v)
-				// Limit the amount of characters reported in a span because
-				// a Jaeger span may not exceed 65k. Usually, the arguments are
-				// not super helpful if it's so many of them anyways.
-				if emittedChars > 32768 {
-					fv.EmitString("more omitted", strconv.Itoa(len(args)-i))
-					break
-				}
-				fv.EmitString(k, v)
-			}
-		}))
-	} else {
-		tr.LogFields(otlog.Bool("bulk_insert", true), otlog.Int("num_args", len(args)))
-	}
-
-	return ctx, nil
-}
-
-// After implements sqlhooks.Hooks
-func (h *hook) After(ctx context.Context, query string, args ...interface{}) (context.Context, error) {
-	if tr := trace.TraceFromContext(ctx); tr != nil {
-		tr.Finish()
-	}
-	h.metricSQLSuccessTotal.Inc()
-	return ctx, nil
-}
-
-// OnError implements sqlhooks.OnError
-func (h *hook) OnError(ctx context.Context, err error, query string, args ...interface{}) error {
-	if tr := trace.TraceFromContext(ctx); tr != nil {
-		tr.SetError(err)
-		tr.Finish()
-	}
-	h.metricSQLErrorTotal.Inc()
-	return err
-}
 
 // configureConnectionPool sets reasonable sizes on the built in DB queue. By
 // default the connection pool is unbounded, which leads to the error `pq:
