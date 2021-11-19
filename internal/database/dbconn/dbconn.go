@@ -5,7 +5,6 @@
 package dbconn
 
 import (
-	"context"
 	"database/sql"
 	"log"
 	"os"
@@ -23,7 +22,6 @@ import (
 	"github.com/qustavo/sqlhooks/v2"
 
 	"github.com/sourcegraph/sourcegraph/internal/env"
-	"github.com/sourcegraph/sourcegraph/internal/lazyregexp"
 )
 
 var (
@@ -243,35 +241,6 @@ func open(cfg *pgx.ConnConfig) (*sql.DB, error) {
 
 	return db, nil
 }
-
-type key int
-
-const bulkInsertionKey key = iota
-
-// BulkInsertion returns true if the bulkInsertionKey context value is true.
-func BulkInsertion(ctx context.Context) bool {
-	v, ok := ctx.Value(bulkInsertionKey).(bool)
-	if !ok {
-		return false
-	}
-	return v
-}
-
-// WithBulkInsertion sets the bulkInsertionKey context value.
-func WithBulkInsertion(ctx context.Context, bulkInsertion bool) context.Context {
-	return context.WithValue(ctx, bulkInsertionKey, bulkInsertion)
-}
-
-// postgresBulkInsertRowsPattern matches `($1, $2, $3), ($4, $5, $6), ...` which
-// we use to cut out the row payloads from bulk insertion tracing data. We don't
-// need all the parameter data for such requests, which are too big to fit into
-// Jaeger spans. Note that we don't just capture `($1.*`, as we want queries with
-// a trailing ON CONFLICT clause not to be semantically mangled in the log output.
-var postgresBulkInsertRowsPattern = lazyregexp.New(`(\([$\d,\s]+\)[,\s]*)+`)
-
-// postgresBulkInsertRowsReplacement replaces the all-placeholder rows matched
-// by the pattern defined above.
-var postgresBulkInsertRowsReplacement = []byte("(...) ")
 
 // configureConnectionPool sets reasonable sizes on the built in DB queue. By
 // default the connection pool is unbounded, which leads to the error `pq:
