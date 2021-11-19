@@ -27,6 +27,15 @@ var startupTimeout = func() time.Duration {
 	return d
 }()
 
+var defaultMaxOpen = func() int {
+	str := env.Get("SRC_PGSQL_MAX_OPEN", "30", "Maximum number of open connections to Postgres")
+	v, err := strconv.Atoi(str)
+	if err != nil {
+		log.Fatalln("SRC_PGSQL_MAX_OPEN:", err)
+	}
+	return v
+}()
+
 func newWithConfig(cfg *pgx.ConnConfig) (*sql.DB, error) {
 	db, err := openDBWithStartupWait(cfg)
 	if err != nil {
@@ -88,8 +97,9 @@ func open(cfg *pgx.ConnConfig) (*sql.DB, error) {
 	// Set max open and idle connections
 	maxOpen, _ := strconv.Atoi(cfg.RuntimeParams["max_conns"])
 	if maxOpen == 0 {
-		maxOpen = 30
+		maxOpen = defaultMaxOpen
 	}
+
 	db.SetMaxOpenConns(maxOpen)
 	db.SetMaxIdleConns(maxOpen)
 	db.SetConnMaxIdleTime(time.Minute)

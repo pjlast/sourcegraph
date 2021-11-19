@@ -2,22 +2,9 @@ package dbconn
 
 import (
 	"database/sql"
-	"log"
-	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/sourcegraph/sourcegraph/internal/env"
 )
-
-var maxOpen = func() int {
-	str := env.Get("SRC_PGSQL_MAX_OPEN", "30", "Maximum number of open connections to Postgres")
-	v, err := strconv.Atoi(str)
-	if err != nil {
-		log.Fatalln("SRC_PGSQL_MAX_OPEN:", err)
-	}
-	return v
-}
 
 // Opts contain arguments passed to database connection initialisation functions.
 type Opts struct {
@@ -49,8 +36,6 @@ func New(opts Opts) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	cfg.RuntimeParams["max_conns"] = strconv.Itoa(maxOpen())
 
 	db, err := newWithConfig(cfg)
 	if err != nil {
